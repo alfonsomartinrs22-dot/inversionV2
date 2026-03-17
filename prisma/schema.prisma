@@ -1,0 +1,53 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+model Asset {
+  id        String   @id @default(cuid())
+  ticker    String
+  name      String
+  type      AssetType
+  trades    Trade[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([ticker, type])
+}
+
+model Trade {
+  id            String    @id @default(cuid())
+  asset         Asset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  assetId       String
+  type          TradeType
+  quantity      Float
+  pricePerUnit  Float
+  currency      Currency
+  exchangeRate  Float     @default(1) // USD/ARS rate at time of trade
+  fees          Float     @default(0)
+  notes         String?
+  executedAt    DateTime
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+enum AssetType {
+  CEDEAR
+  CRYPTO
+}
+
+enum TradeType {
+  BUY
+  SELL
+}
+
+enum Currency {
+  ARS
+  USD
+}
