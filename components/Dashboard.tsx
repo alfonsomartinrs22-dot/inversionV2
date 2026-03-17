@@ -38,7 +38,6 @@ export default function Dashboard() {
     const interval = setInterval(fetchExchangeRate, 20 * 60 * 1000); // refresh every 20 min
     return () => clearInterval(interval);
   }, [fetchExchangeRate]);
-  }, []);
 
   // Fetch holdings
   const fetchHoldings = useCallback(async () => {
