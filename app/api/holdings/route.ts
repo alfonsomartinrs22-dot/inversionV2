@@ -2,14 +2,19 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getSession } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+
   try {
     const { searchParams } = new URL(req.url);
     const viewCurrency = (searchParams.get('currency') || 'USD') as 'ARS' | 'USD';
     const currentRate = parseFloat(searchParams.get('exchangeRate') || '1200');
 
     const assets = await prisma.asset.findMany({
+      where: { userId: session.userId },
       include: {
         trades: { orderBy: { executedAt: 'asc' } },
       },

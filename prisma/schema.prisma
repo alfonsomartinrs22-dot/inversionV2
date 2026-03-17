@@ -11,6 +11,7 @@ datasource db {
 
 model Asset {
   id        String   @id @default(cuid())
+  userId    String
   ticker    String
   name      String
   type      AssetType
@@ -18,23 +19,26 @@ model Asset {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([ticker, type])
+  @@unique([userId, ticker, type])
 }
 
 model Trade {
   id            String    @id @default(cuid())
+  userId        String
   asset         Asset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
   assetId       String
   type          TradeType
   quantity      Float
   pricePerUnit  Float
   currency      Currency
-  exchangeRate  Float     @default(1) // USD/ARS rate at time of trade
+  exchangeRate  Float     @default(1)
   fees          Float     @default(0)
   notes         String?
   executedAt    DateTime
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+
+  @@index([userId])
 }
 
 enum AssetType {

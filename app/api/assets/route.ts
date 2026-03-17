@@ -1,9 +1,16 @@
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getSession } from '@/lib/auth';
 
 export async function GET() {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+
   try {
     const assets = await prisma.asset.findMany({
+      where: { userId: session.userId },
       orderBy: { ticker: 'asc' },
     });
     return NextResponse.json(assets);
@@ -14,6 +21,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+
   try {
     const body = await req.json();
     const { ticker, name, type } = body;
@@ -23,9 +33,15 @@ export async function POST(req: NextRequest) {
     }
 
     const asset = await prisma.asset.upsert({
-      where: { ticker_type: { ticker: ticker.toUpperCase(), type } },
+      where: {
+        userId_ticker_type: {
+          userId: session.userId,
+          ticker: ticker.toUpperCase(),
+          type,
+        },
+      },
       update: { name },
-      create: { ticker: ticker.toUpperCase(), name, type },
+      create: { userId: session.userId, ticker: ticker.toUpperCase(), name, type },
     });
 
     return NextResponse.json(asset, { status: 201 });

@@ -7,12 +7,15 @@ import HoldingsTable from './HoldingsTable';
 import TradeModal from './TradeModal';
 import TradesHistory from './TradesHistory';
 import EmptyState from './EmptyState';
+import LoginScreen from './LoginScreen';
 import { usePrices } from '@/lib/usePrices';
 import type { ViewCurrency, HoldingRow, TradeRow } from '@/lib/utils';
 
 type Tab = 'portfolio' | 'trades';
 
 export default function Dashboard() {
+  const [authChecked, setAuthChecked] = useState(false);
+  const [username, setUsername] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('portfolio');
   const [viewCurrency, setViewCurrency] = useState<ViewCurrency>('USD');
   const [exchangeRate, setExchangeRate] = useState<number>(1200);
@@ -22,6 +25,39 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [showTradeModal, setShowTradeModal] = useState(false);
   const [editingTrade, setEditingTrade] = useState<TradeRow | null>(null);
+
+  // Check auth on mount
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.authenticated) {
+          setUsername(data.username);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setAuthChecked(true));
+  }, []);
+
+  const handleLogout = async () => {
+    await fetch('/api/auth', { method: 'DELETE' });
+    setUsername(null);
+    setHoldings([]);
+    setTrades([]);
+  };
+
+  // Show login if not authenticated
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-accent-lime border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!username) {
+    return <LoginScreen onLogin={(u) => setUsername(u)} />;
+  }
 
   // Fetch exchange rate
   const fetchExchangeRate = useCallback(async () => {
@@ -171,6 +207,8 @@ export default function Dashboard() {
         lastPriceFetch={lastFetch}
         onRefreshPrices={refetchPrices}
         pricesLoading={pricesLoading}
+        username={username}
+        onLogout={handleLogout}
       />
 
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-24">
