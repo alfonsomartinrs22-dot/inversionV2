@@ -60,7 +60,7 @@ export default function LoginScreen({ onLogin }: Props) {
             </svg>
           </div>
           <h1 className="font-display font-medium text-2xl tracking-tight">
-            folio<span className="text-accent-lime">_</span>
+            Alinversion<span className="text-accent-lime">_</span>
           </h1>
           <p className="text-text-muted text-sm mt-2">Ingresá a tu portfolio</p>
         </div>

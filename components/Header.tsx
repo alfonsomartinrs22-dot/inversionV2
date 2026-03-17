@@ -48,7 +48,7 @@ export default function Header({
               </svg>
             </div>
             <span className="font-display font-medium text-lg tracking-tight">
-              folio<span className="text-accent-lime">_</span>
+              Alinversion<span className="text-accent-lime">_</span>
             </span>
           </div>
 

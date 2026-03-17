@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Folio — Investment Tracker',
-  description: 'Seguí tus CEDEARs y criptos en un solo lugar',
+  title: 'Alinversion — Investment Tracker',
+  description: 'Seguí tus CEDEARs y criptos en un solo lugar — Alinversion',
   manifest: '/manifest.json',
 };
 
