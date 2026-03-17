@@ -6,39 +6,48 @@ interface Props {
   holdings: HoldingRow[];
   currency: ViewCurrency;
   totalInvested: number;
+  totalCurrentValue: number;
+  totalDailyReturn: number;
 }
 
-export default function PortfolioCards({ holdings, currency, totalInvested }: Props) {
-  const cedears = holdings.filter((h) => h.type === 'CEDEAR');
-  const cryptos = holdings.filter((h) => h.type === 'CRYPTO');
+export default function PortfolioCards({ holdings, currency, totalInvested, totalCurrentValue, totalDailyReturn }: Props) {
+  const totalReturn = totalCurrentValue - totalInvested;
+  const totalReturnPct = totalInvested > 0 ? (totalReturn / totalInvested) * 100 : 0;
+  const dailyReturnPct = totalCurrentValue > 0 && totalCurrentValue !== totalInvested
+    ? (totalDailyReturn / (totalCurrentValue - totalDailyReturn)) * 100
+    : 0;
 
-  const cedearCost = cedears.reduce((s, h) => s + h.totalCost, 0);
-  const cryptoCost = cryptos.reduce((s, h) => s + h.totalCost, 0);
-
-  const cedearPct = totalInvested > 0 ? (cedearCost / totalInvested) * 100 : 0;
-  const cryptoPct = totalInvested > 0 ? (cryptoCost / totalInvested) * 100 : 0;
+  const hasLivePrices = holdings.some((h) => h.currentPrice !== null);
 
   const cards = [
     {
-      label: 'Total invertido',
-      value: formatMoney(totalInvested, currency),
-      detail: `${holdings.length} activos`,
+      label: 'Valor actual',
+      value: formatMoney(hasLivePrices ? totalCurrentValue : totalInvested, currency),
+      detail: hasLivePrices
+        ? `${holdings.length} activos · Invertido: ${formatMoney(totalInvested, currency)}`
+        : `${holdings.length} activos · Sin precios en vivo`,
       color: 'text-text-primary',
-      accent: 'bg-white/5',
     },
     {
-      label: 'CEDEARs',
-      value: formatMoney(cedearCost, currency),
-      detail: `${cedears.length} activos · ${cedearPct.toFixed(0)}%`,
-      color: 'text-accent-cyan',
-      accent: 'bg-accent-cyan/5',
+      label: 'Ganancia total',
+      value: hasLivePrices ? formatMoney(totalReturn, currency) : '—',
+      detail: hasLivePrices ? formatPct(totalReturnPct) : 'Esperando precios...',
+      color: hasLivePrices
+        ? totalReturn >= 0
+          ? 'text-accent-lime'
+          : 'text-accent-red'
+        : 'text-text-muted',
+      glow: hasLivePrices ? (totalReturn >= 0 ? 'glow-lime' : 'glow-red') : '',
     },
     {
-      label: 'Cripto',
-      value: formatMoney(cryptoCost, currency),
-      detail: `${cryptos.length} activos · ${cryptoPct.toFixed(0)}%`,
-      color: 'text-accent-orange',
-      accent: 'bg-accent-orange/5',
+      label: 'Ganancia del día',
+      value: hasLivePrices ? formatMoney(totalDailyReturn, currency) : '—',
+      detail: hasLivePrices ? formatPct(dailyReturnPct) : 'Esperando precios...',
+      color: hasLivePrices
+        ? totalDailyReturn >= 0
+          ? 'text-accent-cyan'
+          : 'text-accent-red'
+        : 'text-text-muted',
     },
   ];
 
@@ -47,7 +56,7 @@ export default function PortfolioCards({ holdings, currency, totalInvested }: Pr
       {cards.map((card, i) => (
         <div
           key={card.label}
-          className={`glass-card rounded-xl p-5 animate-in stagger-${i + 1}`}
+          className={`glass-card rounded-xl p-5 animate-in stagger-${i + 1} ${card.glow || ''}`}
         >
           <p className="text-xs text-text-muted font-medium uppercase tracking-wider mb-3">
             {card.label}
@@ -55,19 +64,9 @@ export default function PortfolioCards({ holdings, currency, totalInvested }: Pr
           <p className={`text-2xl sm:text-3xl font-display font-medium ${card.color} tracking-tight`}>
             {card.value}
           </p>
-          <p className="text-xs text-text-secondary mt-2">{card.detail}</p>
-
-          {/* Mini bar */}
-          {i > 0 && totalInvested > 0 && (
-            <div className="mt-3 h-1 rounded-full bg-surface-3 overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-700 ${
-                  i === 1 ? 'bg-accent-cyan' : 'bg-accent-orange'
-                }`}
-                style={{ width: `${i === 1 ? cedearPct : cryptoPct}%` }}
-              />
-            </div>
-          )}
+          <p className={`text-xs mt-2 ${card.color === 'text-text-primary' ? 'text-text-secondary' : card.color}`}>
+            {card.detail}
+          </p>
         </div>
       ))}
     </div>

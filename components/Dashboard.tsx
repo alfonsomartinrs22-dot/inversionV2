@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Header from './Header';
 import PortfolioCards from './PortfolioCards';
 import HoldingsTable from './HoldingsTable';
 import TradeModal from './TradeModal';
 import TradesHistory from './TradesHistory';
 import EmptyState from './EmptyState';
+import { usePrices } from '@/lib/usePrices';
 import type { ViewCurrency, HoldingRow, TradeRow } from '@/lib/utils';
 
 type Tab = 'portfolio' | 'trades';
@@ -77,6 +78,55 @@ export default function Dashboard() {
     Promise.all([fetchHoldings(), fetchTrades()]).finally(() => setLoading(false));
   }, [fetchHoldings, fetchTrades]);
 
+  // Build ticker list for price fetching
+  const priceTickers = useMemo(
+    () => holdings.map((h) => ({ ticker: h.ticker, type: h.type })),
+    [holdings]
+  );
+
+  // Fetch live prices with 20-min auto-refresh
+  const { prices, lastFetch, loading: pricesLoading, refetch: refetchPrices } = usePrices(
+    priceTickers,
+    exchangeRate
+  );
+
+  // Merge holdings with live prices
+  const enrichedHoldings = useMemo(() => {
+    return holdings.map((h) => {
+      const priceData = prices[`${h.ticker}:${h.type}`];
+      if (!priceData) return h;
+
+      const currentPrice =
+        viewCurrency === 'USD' ? priceData.priceUSD : priceData.priceARS;
+      const prevClose =
+        viewCurrency === 'USD' ? priceData.prevCloseUSD : priceData.prevCloseARS;
+
+      const currentValue = currentPrice ? h.quantity * currentPrice : null;
+      const returnAbs = currentValue !== null ? currentValue - h.totalCost : null;
+      const returnPct =
+        h.totalCost > 0 && returnAbs !== null
+          ? (returnAbs / h.totalCost) * 100
+          : null;
+
+      const prevValue = prevClose ? h.quantity * prevClose : null;
+      const dailyReturn =
+        currentValue !== null && prevValue !== null
+          ? currentValue - prevValue
+          : null;
+      const dailyReturnPct = priceData.dailyChangePct;
+
+      return {
+        ...h,
+        currentPrice,
+        currentValue,
+        returnAbs,
+        returnPct,
+        dailyReturn,
+        dailyReturnPct,
+      } as HoldingRow & { dailyReturn: number | null; dailyReturnPct: number | null };
+    });
+  }, [holdings, prices, viewCurrency]);
+
   const handleTradeCreated = () => {
     setShowTradeModal(false);
     setEditingTrade(null);
@@ -91,7 +141,15 @@ export default function Dashboard() {
     fetchTrades();
   };
 
-  const totalInvested = holdings.reduce((sum, h) => sum + h.totalCost, 0);
+  const totalInvested = enrichedHoldings.reduce((sum, h) => sum + h.totalCost, 0);
+  const totalCurrentValue = enrichedHoldings.reduce(
+    (sum, h) => sum + (h.currentValue ?? h.totalCost),
+    0
+  );
+  const totalDailyReturn = enrichedHoldings.reduce(
+    (sum, h) => sum + ((h as any).dailyReturn ?? 0),
+    0
+  );
   const isEmpty = !loading && holdings.length === 0 && trades.length === 0;
 
   return (
@@ -105,6 +163,9 @@ export default function Dashboard() {
           setEditingTrade(null);
           setShowTradeModal(true);
         }}
+        lastPriceFetch={lastFetch}
+        onRefreshPrices={refetchPrices}
+        pricesLoading={pricesLoading}
       />
 
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-24">
@@ -143,12 +204,14 @@ export default function Dashboard() {
             ) : tab === 'portfolio' ? (
               <div className="space-y-6">
                 <PortfolioCards
-                  holdings={holdings}
+                  holdings={enrichedHoldings}
                   currency={viewCurrency}
                   totalInvested={totalInvested}
+                  totalCurrentValue={totalCurrentValue}
+                  totalDailyReturn={totalDailyReturn}
                 />
                 <HoldingsTable
-                  holdings={holdings}
+                  holdings={enrichedHoldings}
                   currency={viewCurrency}
                   exchangeRate={exchangeRate}
                 />

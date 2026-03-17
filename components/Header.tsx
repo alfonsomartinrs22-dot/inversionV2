@@ -8,6 +8,9 @@ interface HeaderProps {
   exchangeRate: number;
   exchangeSource: string;
   onNewTrade: () => void;
+  lastPriceFetch: Date | null;
+  onRefreshPrices: () => void;
+  pricesLoading: boolean;
 }
 
 export default function Header({
@@ -16,6 +19,9 @@ export default function Header({
   exchangeRate,
   exchangeSource,
   onNewTrade,
+  lastPriceFetch,
+  onRefreshPrices,
+  pricesLoading,
 }: HeaderProps) {
   return (
     <header className="sticky top-0 z-30 bg-surface-0/80 backdrop-blur-xl border-b border-white/[0.04]">
@@ -49,6 +55,28 @@ export default function Header({
                 <span className="text-text-muted">({exchangeSource})</span>
               )}
             </div>
+
+            {/* Refresh prices */}
+            <button
+              onClick={onRefreshPrices}
+              disabled={pricesLoading}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-1 text-xs text-text-secondary hover:text-text-primary transition-colors disabled:opacity-50"
+              title={lastPriceFetch ? `Última actualización: ${lastPriceFetch.toLocaleTimeString('es-AR')}` : 'Actualizar precios'}
+            >
+              <svg
+                width="14"
+                height="14"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                className={pricesLoading ? 'animate-spin' : ''}
+              >
+                <path d="M1 7a6 6 0 0111.196-3M13 7A6 6 0 011.804 10" />
+                <path d="M13 1v3h-3M1 13v-3h3" />
+              </svg>
+              {lastPriceFetch ? lastPriceFetch.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : 'Precios'}
+            </button>
 
             {/* Currency toggle */}
             <div className="flex bg-surface-1 rounded-lg p-0.5">
