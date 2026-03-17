@@ -86,44 +86,76 @@ async function fetchCEDEARPrice(ticker: string): Promise<{
   }
 }
 
-// ─── Binance: Fetch crypto price ───
+// ─── Binance: Fetch crypto price (with CoinGecko fallback) ───
+
+// Map common tickers to CoinGecko IDs
+const COINGECKO_IDS: Record<string, string> = {
+  BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', ADA: 'cardano',
+  DOT: 'polkadot', AVAX: 'avalanche-2', MATIC: 'matic-network',
+  LINK: 'chainlink', UNI: 'uniswap', ATOM: 'cosmos', XRP: 'ripple',
+  DOGE: 'dogecoin', SHIB: 'shiba-inu', LTC: 'litecoin', BNB: 'binancecoin',
+  NEAR: 'near', ARB: 'arbitrum', OP: 'optimism', FTM: 'fantom',
+  ALGO: 'algorand', MANA: 'decentraland', SAND: 'the-sandbox',
+  APE: 'apecoin', AAVE: 'aave', CRV: 'curve-dao-token', LDO: 'lido-dao',
+  PEPE: 'pepe', WIF: 'dogwifcoin', RENDER: 'render-token', FET: 'fetch-ai',
+  INJ: 'injective-protocol', SUI: 'sui', SEI: 'sei-network', TIA: 'celestia',
+  JUP: 'jupiter-exchange-solana', WLD: 'worldcoin-wld', PYTH: 'pyth-network',
+};
+
 async function fetchCryptoPrice(ticker: string): Promise<{
   priceUSD: number | null;
   prevCloseUSD: number | null;
   variation: number | null;
 } | null> {
-  // Map common ticker names to Binance pairs
   const symbol = ticker.toUpperCase();
   const pair = `${symbol}USDT`;
 
+  // Try Binance first
   try {
     const res = await fetch(
-      `https://api.binance.com/api/v3/ticker/24hr?symbol=${pair}`
+      `https://api.binance.com/api/v3/ticker/24hr?symbol=${pair}`,
+      { signal: AbortSignal.timeout(5000) }
     );
 
-    if (!res.ok) {
-      // Try without the T (e.g., USDC)
-      const altRes = await fetch(
-        `https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}USD`
-      );
-      if (!altRes.ok) return null;
-      const altData = await altRes.json();
+    if (res.ok) {
+      const data = await res.json();
       return {
-        priceUSD: parseFloat(altData.lastPrice) || null,
-        prevCloseUSD: parseFloat(altData.prevClosePrice) || null,
-        variation: parseFloat(altData.priceChangePercent) || null,
+        priceUSD: parseFloat(data.lastPrice) || null,
+        prevCloseUSD: parseFloat(data.prevClosePrice) || null,
+        variation: parseFloat(data.priceChangePercent) || null,
       };
     }
-
-    const data = await res.json();
-    return {
-      priceUSD: parseFloat(data.lastPrice) || null,
-      prevCloseUSD: parseFloat(data.prevClosePrice) || null,
-      variation: parseFloat(data.priceChangePercent) || null,
-    };
   } catch {
-    return null;
+    // Binance failed or timed out, try CoinGecko
   }
+
+  // Fallback: CoinGecko
+  const geckoId = COINGECKO_IDS[symbol] || symbol.toLowerCase();
+  try {
+    const res = await fetch(
+      `https://api.coingecko.com/api/v3/simple/price?ids=${geckoId}&vs_currencies=usd&include_24hr_change=true`,
+      { signal: AbortSignal.timeout(5000) }
+    );
+
+    if (res.ok) {
+      const data = await res.json();
+      const coin = data[geckoId];
+      if (coin) {
+        const price = coin.usd;
+        const change24h = coin.usd_24h_change || 0;
+        const prevClose = price / (1 + change24h / 100);
+        return {
+          priceUSD: price,
+          prevCloseUSD: prevClose,
+          variation: change24h,
+        };
+      }
+    }
+  } catch {
+    // CoinGecko also failed
+  }
+
+  return null;
 }
 
 // ─── Main handler ───

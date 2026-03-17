@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 
 export interface PriceData {
   ticker: string;
@@ -30,19 +30,21 @@ export function usePrices(
   const [error, setError] = useState<string | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const fetchPrices = useCallback(async () => {
-    if (tickers.length === 0) return;
+  // Stabilize the ticker key so it doesn't change on every render
+  const tickerKey = useMemo(
+    () => tickers.map((t) => `${t.ticker}:${t.type}`).join(','),
+    [tickers]
+  );
 
-    const tickerParam = tickers
-      .map((t) => `${t.ticker}:${t.type}`)
-      .join(',');
+  const fetchPrices = useCallback(async () => {
+    if (!tickerKey) return;
 
     setLoading(true);
     setError(null);
 
     try {
       const res = await fetch(
-        `/api/prices?tickers=${encodeURIComponent(tickerParam)}&exchangeRate=${exchangeRate}`
+        `/api/prices?tickers=${encodeURIComponent(tickerKey)}&exchangeRate=${exchangeRate}`
       );
       if (!res.ok) throw new Error('Failed to fetch prices');
       const data: PriceResponse = await res.json();
@@ -53,7 +55,7 @@ export function usePrices(
     } finally {
       setLoading(false);
     }
-  }, [tickers.map((t) => `${t.ticker}:${t.type}`).join(','), exchangeRate]);
+  }, [tickerKey, exchangeRate]);
 
   // Initial fetch + auto-refresh every 20 min
   useEffect(() => {

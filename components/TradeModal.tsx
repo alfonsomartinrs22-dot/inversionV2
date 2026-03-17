@@ -47,7 +47,7 @@ export default function TradeModal({ exchangeRate, onClose, onCreated }: Props) 
           exchangeRate: customRate || exchangeRate,
           fees: fees || '0',
           notes: notes.trim() || null,
-          executedAt: new Date(date).toISOString(),
+          executedAt: `${date}T12:00:00`,
         }),
       });
 
