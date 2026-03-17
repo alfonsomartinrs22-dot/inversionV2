@@ -4,14 +4,14 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    // Fetch blue dollar rate from a public API
-    const res = await fetch('https://dolarapi.com/v1/dolares/blue', {
+    // Fetch dólar MEP (bolsa) rate
+    const res = await fetch('https://dolarapi.com/v1/dolares/bolsa', {
       next: { revalidate: 300 }, // cache 5 min
     });
 
     if (!res.ok) {
-      // Fallback to crypto dollar
-      const fallback = await fetch('https://dolarapi.com/v1/dolares/cripto', {
+      // Fallback to CCL
+      const fallback = await fetch('https://dolarapi.com/v1/dolares/contadoconliqui', {
         next: { revalidate: 300 },
       });
       if (!fallback.ok) throw new Error('Failed to fetch rate');
@@ -19,7 +19,7 @@ export async function GET() {
       return NextResponse.json({
         buy: data.compra,
         sell: data.venta,
-        source: 'cripto',
+        source: 'CCL',
         updatedAt: data.fechaActualizacion,
       });
     }
@@ -28,12 +28,11 @@ export async function GET() {
     return NextResponse.json({
       buy: data.compra,
       sell: data.venta,
-      source: 'blue',
+      source: 'MEP',
       updatedAt: data.fechaActualizacion,
     });
   } catch (error) {
     console.error('GET /api/exchange-rate error:', error);
-    // Return a reasonable fallback
     return NextResponse.json({
       buy: 1200,
       sell: 1250,

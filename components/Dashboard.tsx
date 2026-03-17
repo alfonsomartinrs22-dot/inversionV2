@@ -24,14 +24,20 @@ export default function Dashboard() {
   const [editingTrade, setEditingTrade] = useState<TradeRow | null>(null);
 
   // Fetch exchange rate
+  const fetchExchangeRate = useCallback(async () => {
+    try {
+      const r = await fetch('/api/exchange-rate');
+      const data = await r.json();
+      setExchangeRate(data.sell || 1200);
+      setExchangeSource(data.source || '');
+    } catch {}
+  }, []);
+
   useEffect(() => {
-    fetch('/api/exchange-rate')
-      .then((r) => r.json())
-      .then((data) => {
-        setExchangeRate(data.sell || 1200);
-        setExchangeSource(data.source || '');
-      })
-      .catch(() => {});
+    fetchExchangeRate();
+    const interval = setInterval(fetchExchangeRate, 20 * 60 * 1000); // refresh every 20 min
+    return () => clearInterval(interval);
+  }, [fetchExchangeRate]);
   }, []);
 
   // Fetch holdings

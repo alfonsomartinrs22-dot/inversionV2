@@ -2,93 +2,54 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 
-// ─── IOL Auth Token Management ───
-let iolToken: string | null = null;
-let iolRefreshToken: string | null = null;
-let iolTokenExpiry = 0;
-
-async function getIOLToken(): Promise<string | null> {
-  const user = process.env.IOL_USERNAME;
-  const pass = process.env.IOL_PASSWORD;
-
-  if (!user || !pass) return null;
-
-  // If token is still valid, reuse it
-  if (iolToken && Date.now() < iolTokenExpiry) {
-    return iolToken;
-  }
-
-  // Try refresh first
-  if (iolRefreshToken) {
-    try {
-      const res = await fetch('https://api.invertironline.com/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(iolRefreshToken)}`,
-      });
-      if (res.ok) {
-        const data = await res.json();
-        iolToken = data.access_token;
-        iolRefreshToken = data.refresh_token;
-        iolTokenExpiry = Date.now() + (data.expires_in || 900) * 1000 - 30000; // 30s buffer
-        return iolToken;
-      }
-    } catch {}
-  }
-
-  // Fresh login
-  try {
-    const res = await fetch('https://api.invertironline.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `grant_type=password&username=${encodeURIComponent(user)}&password=${encodeURIComponent(pass)}`,
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    iolToken = data.access_token;
-    iolRefreshToken = data.refresh_token;
-    iolTokenExpiry = Date.now() + (data.expires_in || 900) * 1000 - 30000;
-    return iolToken;
-  } catch {
-    return null;
-  }
-}
-
-// ─── IOL: Fetch CEDEAR price ───
+// ─── Yahoo Finance: Fetch CEDEAR price (ticker.BA) ───
 async function fetchCEDEARPrice(ticker: string): Promise<{
   priceARS: number | null;
-  priceUSD: number | null;
   prevCloseARS: number | null;
   variation: number | null;
 } | null> {
-  const token = await getIOLToken();
-  if (!token) return null;
+  const yahooTicker = `${ticker.toUpperCase()}.BA`;
 
   try {
+    // Yahoo Finance v8 quote endpoint (public, no auth needed)
     const res = await fetch(
-      `https://api.invertironline.com/api/v2/bCBA/Titulos/${encodeURIComponent(ticker)}/Cotizacion`,
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooTicker)}?range=2d&interval=1d`,
       {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          'User-Agent': 'Mozilla/5.0',
+        },
+        signal: AbortSignal.timeout(8000),
       }
     );
 
     if (!res.ok) return null;
-    const data = await res.json();
+    const json = await res.json();
+
+    const result = json?.chart?.result?.[0];
+    if (!result) return null;
+
+    const meta = result.meta;
+    const currentPrice = meta?.regularMarketPrice ?? null;
+    const prevClose = meta?.chartPreviousClose ?? meta?.previousClose ?? null;
+
+    let variation: number | null = null;
+    if (currentPrice && prevClose && prevClose > 0) {
+      variation = ((currentPrice - prevClose) / prevClose) * 100;
+    }
 
     return {
-      priceARS: data.ultimoPrecio ?? null,
-      priceUSD: null, // will be calculated with exchange rate
-      prevCloseARS: data.cierreAnterior ?? null,
-      variation: data.variacionPorcentual ?? data.variacion ?? null,
+      priceARS: currentPrice,
+      prevCloseARS: prevClose,
+      variation,
     };
-  } catch {
+  } catch (err) {
+    console.error(`Yahoo Finance error for ${yahooTicker}:`, err);
     return null;
   }
 }
 
-// ─── Binance: Fetch crypto price (with CoinGecko fallback) ───
+// ─── Binance + CoinGecko: Fetch crypto price ───
 
-// Map common tickers to CoinGecko IDs
 const COINGECKO_IDS: Record<string, string> = {
   BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', ADA: 'cardano',
   DOT: 'polkadot', AVAX: 'avalanche-2', MATIC: 'matic-network',
@@ -126,7 +87,7 @@ async function fetchCryptoPrice(ticker: string): Promise<{
       };
     }
   } catch {
-    // Binance failed or timed out, try CoinGecko
+    // Binance failed, try CoinGecko
   }
 
   // Fallback: CoinGecko
@@ -199,7 +160,7 @@ export async function GET(req: NextRequest) {
             dailyChangePct: data?.variation ?? null,
           };
         } else {
-          // CEDEAR
+          // CEDEAR — price comes in ARS from Yahoo Finance (.BA)
           const data = await fetchCEDEARPrice(ticker);
           results[`${ticker}:${type}`] = {
             ticker,
