@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface Props {
   exchangeRate: number;
@@ -17,11 +17,37 @@ export default function TradeModal({ exchangeRate, onClose, onCreated }: Props) 
   const [price, setPrice] = useState('');
   const [currency, setCurrency] = useState<'ARS' | 'USD'>('USD');
   const [customRate, setCustomRate] = useState(exchangeRate.toString());
+  const [rateSource, setRateSource] = useState('');
+  const [rateLoading, setRateLoading] = useState(false);
   const [fees, setFees] = useState('');
   const [notes, setNotes] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  // Auto-fetch historical MEP rate when date changes
+  useEffect(() => {
+    const today = new Date().toISOString().split('T')[0];
+    if (date === today) {
+      // Use current rate for today
+      setCustomRate(exchangeRate.toString());
+      setRateSource('MEP actual');
+      return;
+    }
+
+    setRateLoading(true);
+    setRateSource('');
+    fetch(`/api/exchange-rate/historical?date=${date}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.sell) {
+          setCustomRate(data.sell.toString());
+          setRateSource(data.source || 'MEP histórico');
+        }
+      })
+      .catch(() => {})
+      .finally(() => setRateLoading(false));
+  }, [date, exchangeRate]);
 
   const handleSubmit = async () => {
     if (!ticker.trim() || !assetName.trim() || !quantity || !price) {
@@ -221,14 +247,18 @@ export default function TradeModal({ exchangeRate, onClose, onCreated }: Props) 
             <div>
               <label className="block text-xs text-text-muted mb-2 uppercase tracking-wider">
                 TC USD/ARS
+                {rateLoading && <span className="ml-1 text-accent-cyan">buscando...</span>}
               </label>
               <input
                 type="number"
                 value={customRate}
-                onChange={(e) => setCustomRate(e.target.value)}
+                onChange={(e) => { setCustomRate(e.target.value); setRateSource('manual'); }}
                 step="any"
                 className="w-full bg-surface-2 border border-white/[0.06] rounded-lg px-3 py-2.5 text-sm font-display placeholder:text-text-muted focus:outline-none focus:border-accent-lime/30 transition-colors"
               />
+              {rateSource && !rateLoading && (
+                <p className="text-[10px] text-text-muted mt-1">{rateSource}</p>
+              )}
             </div>
           </div>
 
