@@ -14,8 +14,11 @@ import type { ViewCurrency, HoldingRow, TradeRow } from '@/lib/utils';
 type Tab = 'portfolio' | 'trades';
 
 export default function Dashboard() {
+  // ── Auth state ──
   const [authChecked, setAuthChecked] = useState(false);
   const [username, setUsername] = useState<string | null>(null);
+
+  // ── App state ──
   const [tab, setTab] = useState<Tab>('portfolio');
   const [viewCurrency, setViewCurrency] = useState<ViewCurrency>('USD');
   const [exchangeRate, setExchangeRate] = useState<number>(1200);
@@ -25,6 +28,8 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [showTradeModal, setShowTradeModal] = useState(false);
   const [editingTrade, setEditingTrade] = useState<TradeRow | null>(null);
+
+  // ── ALL hooks must be above any conditional return ──
 
   // Check auth on mount
   useEffect(() => {
@@ -39,26 +44,6 @@ export default function Dashboard() {
       .finally(() => setAuthChecked(true));
   }, []);
 
-  const handleLogout = async () => {
-    await fetch('/api/auth', { method: 'DELETE' });
-    setUsername(null);
-    setHoldings([]);
-    setTrades([]);
-  };
-
-  // Show login if not authenticated
-  if (!authChecked) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-accent-lime border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  if (!username) {
-    return <LoginScreen onLogin={(u) => setUsername(u)} />;
-  }
-
   // Fetch exchange rate
   const fetchExchangeRate = useCallback(async () => {
     try {
@@ -70,13 +55,15 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
+    if (!username) return;
     fetchExchangeRate();
-    const interval = setInterval(fetchExchangeRate, 20 * 60 * 1000); // refresh every 20 min
+    const interval = setInterval(fetchExchangeRate, 20 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [fetchExchangeRate]);
+  }, [fetchExchangeRate, username]);
 
   // Fetch holdings
   const fetchHoldings = useCallback(async () => {
+    if (!username) return;
     try {
       const res = await fetch(
         `/api/holdings?currency=${viewCurrency}&exchangeRate=${exchangeRate}`
@@ -86,10 +73,11 @@ export default function Dashboard() {
     } catch {
       setHoldings([]);
     }
-  }, [viewCurrency, exchangeRate]);
+  }, [viewCurrency, exchangeRate, username]);
 
   // Fetch trades
   const fetchTrades = useCallback(async () => {
+    if (!username) return;
     try {
       const res = await fetch('/api/trades');
       const data = await res.json();
@@ -111,13 +99,14 @@ export default function Dashboard() {
     } catch {
       setTrades([]);
     }
-  }, []);
+  }, [username]);
 
-  // Initial load
+  // Initial data load (when logged in)
   useEffect(() => {
+    if (!username) return;
     setLoading(true);
     Promise.all([fetchHoldings(), fetchTrades()]).finally(() => setLoading(false));
-  }, [fetchHoldings, fetchTrades]);
+  }, [fetchHoldings, fetchTrades, username]);
 
   // Build ticker list for price fetching
   const priceTickers = useMemo(
@@ -168,6 +157,15 @@ export default function Dashboard() {
     });
   }, [holdings, prices, viewCurrency]);
 
+  // ── Handlers ──
+
+  const handleLogout = async () => {
+    await fetch('/api/auth', { method: 'DELETE' });
+    setUsername(null);
+    setHoldings([]);
+    setTrades([]);
+  };
+
   const handleTradeCreated = () => {
     setShowTradeModal(false);
     setEditingTrade(null);
@@ -182,6 +180,8 @@ export default function Dashboard() {
     fetchTrades();
   };
 
+  // ── Derived values ──
+
   const totalInvested = enrichedHoldings.reduce((sum, h) => sum + h.totalCost, 0);
   const totalCurrentValue = enrichedHoldings.reduce(
     (sum, h) => sum + (h.currentValue ?? h.totalCost),
@@ -192,6 +192,22 @@ export default function Dashboard() {
     0
   );
   const isEmpty = !loading && holdings.length === 0 && trades.length === 0;
+
+  // ── Conditional renders (AFTER all hooks) ──
+
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-accent-lime border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!username) {
+    return <LoginScreen onLogin={(u) => setUsername(u)} />;
+  }
+
+  // ── Main render ──
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -216,7 +232,6 @@ export default function Dashboard() {
           <EmptyState onAddTrade={() => setShowTradeModal(true)} />
         ) : (
           <>
-            {/* Tab navigation */}
             <div className="flex gap-1 mt-6 mb-6 bg-surface-1 rounded-lg p-1 w-fit">
               <button
                 onClick={() => setTab('portfolio')}
@@ -271,7 +286,6 @@ export default function Dashboard() {
         )}
       </main>
 
-      {/* FAB for mobile */}
       <button
         onClick={() => {
           setEditingTrade(null);
