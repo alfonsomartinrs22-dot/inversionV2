@@ -75,9 +75,9 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json(trade, { status: 201 });
-  } catch (error) {
-    console.error('POST /api/trades error:', error);
-    return NextResponse.json({ error: 'Error creating trade' }, { status: 500 });
+  } catch (error: any) {
+    console.error('POST /api/trades error:', error?.message || error);
+    return NextResponse.json({ error: 'Error creating trade', detail: error?.message || String(error) }, { status: 500 });
   }
 }
 
